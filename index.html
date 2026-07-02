@@ -1,9 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Yu's Travel Bucket List</title>
+<meta name="robots" content="noindex">
+<title>Travel Bucket List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -421,6 +423,8 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const AREA_OPTIONS = {
@@ -464,35 +468,106 @@ const state = {
 };
 
 const STORAGE_KEY = "travel-bucket-list-v1";
+
+/*
+  Shared editing setup
+  --------------------
+  A static HTML file cannot save edits for every visitor by itself.
+  To make edits persist for everyone opening the same URL, connect this page to a shared database.
+
+  Quick setup option: Firebase Realtime Database
+  1) Create a Firebase project and a Realtime Database.
+  2) Set the database rules to allow the access level you want.
+     For a private bucket list, do not leave public write access enabled long-term.
+  3) Replace the placeholder values below and change enabled to true.
+  4) Upload this HTML file to GitHub Pages or another static host.
+
+  Until SHARED_SYNC.enabled is true and the Firebase values are filled in, edits are saved only in the
+  current browser via localStorage, with window.storage used when available.
+*/
+const SHARED_SYNC = {
+  enabled: false,
+  firebaseConfig: {
+    apiKey: "YOUR_FIREBASE_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT",
+    appId: "YOUR_FIREBASE_APP_ID"
+  },
+  databasePath: "travel-bucket-list/state"
+};
+
 let editingId = null;
+let sharedDbRef = null;
+
+function hasSharedSyncConfig(){
+  const cfg = SHARED_SYNC.firebaseConfig || {};
+  return SHARED_SYNC.enabled &&
+    typeof firebase !== "undefined" &&
+    cfg.apiKey && !cfg.apiKey.startsWith("YOUR_") &&
+    cfg.databaseURL && !cfg.databaseURL.includes("YOUR_PROJECT") &&
+    cfg.projectId && !cfg.projectId.startsWith("YOUR_");
+}
+
+function initSharedSync(){
+  if(!hasSharedSyncConfig()) return;
+  if(!firebase.apps.length) firebase.initializeApp(SHARED_SYNC.firebaseConfig);
+  sharedDbRef = firebase.database().ref(SHARED_SYNC.databasePath);
+}
+
+async function readSavedState(){
+  if(sharedDbRef){
+    const snapshot = await sharedDbRef.get();
+    return snapshot.exists() ? snapshot.val() : null;
+  }
+  if(window.storage && typeof window.storage.get === "function"){
+    const res = await window.storage.get(STORAGE_KEY, false);
+    return res && res.value ? JSON.parse(res.value) : null;
+  }
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function writeSavedState(payload){
+  if(sharedDbRef){
+    await sharedDbRef.set(payload);
+    return;
+  }
+  if(window.storage && typeof window.storage.set === "function"){
+    await window.storage.set(STORAGE_KEY, JSON.stringify(payload), false);
+    return;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+}
+
+function applySavedState(parsed){
+  if(!parsed) return;
+  if(parsed.done) state.done = new Set(parsed.done);
+  // backward compatibility with the older notes-only save format
+  if(parsed.notes){
+    Object.entries(parsed.notes).forEach(([id, note])=>{
+      const item = findItem(id);
+      if(item) item.notes = note;
+    });
+  }
+  if(parsed.added){
+    parsed.added.forEach(item=>{
+      if(!DATA[item.tab]) return;
+      if(!findItem(item.id)) DATA[item.tab].push(item);
+    });
+  }
+  // full field-level overrides (edits to built-in cards, including moved map pins)
+  if(parsed.overrides){
+    Object.entries(parsed.overrides).forEach(([id, fields])=>{
+      const item = findItem(id);
+      if(item) Object.assign(item, fields);
+    });
+  }
+}
 
 async function loadState(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, false);
-    if(res && res.value){
-      const parsed = JSON.parse(res.value);
-      if(parsed.done) state.done = new Set(parsed.done);
-      // backward compatibility with the older notes-only save format
-      if(parsed.notes){
-        Object.entries(parsed.notes).forEach(([id, note])=>{
-          const item = findItem(id);
-          if(item) item.notes = note;
-        });
-      }
-      if(parsed.added){
-        parsed.added.forEach(item=>{
-          if(!DATA[item.tab]) return;
-          DATA[item.tab].push(item);
-        });
-      }
-      // full field-level overrides (edits to built-in cards, including moved map pins)
-      if(parsed.overrides){
-        Object.entries(parsed.overrides).forEach(([id, fields])=>{
-          const item = findItem(id);
-          if(item) Object.assign(item, fields);
-        });
-      }
-    }
+    applySavedState(await readSavedState());
   }catch(e){ /* no saved state yet, or storage unavailable */ }
 }
 
@@ -515,9 +590,9 @@ async function persistState(){
         }
       });
     });
-    await window.storage.set(STORAGE_KEY, JSON.stringify({
+    await writeSavedState({
       done:[...state.done], overrides, added
-    }), false);
+    });
   }catch(e){ /* storage unavailable, changes stay in-memory only */ }
 }
 
@@ -1025,6 +1100,7 @@ function showToast(msg){
 })();
 
 async function init(){
+  initSharedSync();
   await loadState();
   buildAreaChips();
   render();
