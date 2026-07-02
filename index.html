@@ -268,6 +268,17 @@
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 
+  .auth-row{
+    display:flex; justify-content:center; align-items:center; gap:10px; margin:12px 0 4px; flex-wrap:wrap;
+    font-size:12.5px; font-weight:800; color:var(--muted);
+  }
+  .auth-btn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:13px; border:none;
+    border-radius:99px; padding:8px 15px; cursor:pointer; background:var(--ink); color:#fff;
+  }
+  .auth-btn.secondary{ background:var(--sky); color:var(--ink); border:1px solid var(--line); }
+  .editor-only.hidden{ display:none !important; }
+
   @media (max-width:480px){
     .form-grid{ grid-template-columns:1fr; }
   }
@@ -298,7 +309,7 @@
 
     <div class="search-row">
       <input class="search-input" id="searchInput" type="text" placeholder="Search a place...">
-      <button class="add-btn" id="addBtn">+ Add a place</button>
+      <button class="add-btn editor-only" id="addBtn">+ Add a place</button>
     </div>
 
     <div class="chip-row" id="areaRow"></div>
@@ -312,6 +323,12 @@
     <div class="view-row">
       <button class="view-btn active" data-view="cards">Cards</button>
       <button class="view-btn" data-view="map">Map</button>
+    </div>
+
+    <div class="auth-row" id="authRow">
+      <span id="authStatus">View only</span>
+      <button class="auth-btn" id="loginBtn" type="button">Editor login</button>
+      <button class="auth-btn secondary" id="logoutBtn" type="button" style="display:none;">Logout</button>
     </div>
   </div>
 
@@ -351,9 +368,9 @@
     <label for="detailNotes">Notes</label>
     <textarea id="detailNotes" placeholder="Add a note — what you want to do here, who to go with, restaurants to try..."></textarea>
     <div class="modal-actions">
-      <button class="btn btn-primary" id="detailSave">Save note</button>
-      <button class="btn btn-secondary" id="detailToggleDone">Mark as visited</button>
-      <button class="btn btn-secondary" id="detailEdit">Edit place</button>
+      <button class="btn btn-primary editor-only" id="detailSave">Save note</button>
+      <button class="btn btn-secondary editor-only" id="detailToggleDone">Mark as visited</button>
+      <button class="btn btn-secondary editor-only" id="detailEdit">Edit place</button>
     </div>
   </div>
 </div>
@@ -425,6 +442,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const AREA_OPTIONS = {
@@ -486,19 +504,26 @@ const STORAGE_KEY = "travel-bucket-list-v1";
   current browser via localStorage, with window.storage used when available.
 */
 const SHARED_SYNC = {
-  enabled: false,
+  enabled: true,
+  // Replace this with the Google account email that should be allowed to edit.
+  // Visitors who are not signed in as this email will see the page in view-only mode.
+  ownerEmail: "yuu.yuu.0511.oira@gmail.com",
   firebaseConfig: {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-    projectId: "YOUR_PROJECT",
-    appId: "YOUR_FIREBASE_APP_ID"
+    apiKey: "AIzaSyD3TPcivokFko0stqbwBORlHbK0RApKgi4",
+    authDomain: "yu-s-travel-bucket-list.firebaseapp.com",
+    databaseURL: "https://yu-s-travel-bucket-list-default-rtdb.firebaseio.com",
+    projectId: "yu-s-travel-bucket-list",
+    storageBucket: "yu-s-travel-bucket-list.firebasestorage.app",
+    messagingSenderId: "896926164105",
+    appId: "1:896926164105:web:fdc8766e9059c674459258"
   },
   databasePath: "travel-bucket-list/state"
 };
 
 let editingId = null;
 let sharedDbRef = null;
+let sharedAuth = null;
+let currentUser = null;
 
 function hasSharedSyncConfig(){
   const cfg = SHARED_SYNC.firebaseConfig || {};
@@ -513,6 +538,84 @@ function initSharedSync(){
   if(!hasSharedSyncConfig()) return;
   if(!firebase.apps.length) firebase.initializeApp(SHARED_SYNC.firebaseConfig);
   sharedDbRef = firebase.database().ref(SHARED_SYNC.databasePath);
+  if(firebase.auth){
+    sharedAuth = firebase.auth();
+    sharedAuth.onAuthStateChanged(user=>{
+      currentUser = user || null;
+      updateAuthUI();
+      render();
+    });
+  }
+}
+
+function isOwnerUser(){
+  const ownerEmail = String(SHARED_SYNC.ownerEmail || "").trim().toLowerCase();
+  if(!ownerEmail || ownerEmail.includes("PASTE_YOUR")) return false;
+  return !!(currentUser && currentUser.email && currentUser.email.toLowerCase() === ownerEmail);
+}
+
+function canEdit(){
+  if(SHARED_SYNC.enabled) return isOwnerUser();
+  return true;
+}
+
+function updateAuthUI(){
+  const status = document.getElementById('authStatus');
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const allowed = canEdit();
+  document.querySelectorAll('.editor-only').forEach(el=>el.classList.toggle('hidden', !allowed));
+  const notes = document.getElementById('detailNotes');
+  if(notes) notes.readOnly = !allowed;
+  if(!status || !loginBtn || !logoutBtn) return;
+  if(!SHARED_SYNC.enabled){
+    status.textContent = "Local edit mode";
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "none";
+    return;
+  }
+  if(!SHARED_SYNC.ownerEmail || SHARED_SYNC.ownerEmail.includes("PASTE_YOUR")){
+    status.textContent = "View only — set ownerEmail in the HTML";
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "none";
+    return;
+  }
+  if(allowed){
+    status.textContent = `Editor mode: ${currentUser.email}`;
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "inline-block";
+  } else if(currentUser){
+    status.textContent = `View only: ${currentUser.email}`;
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "inline-block";
+  } else {
+    status.textContent = "View only";
+    loginBtn.style.display = "inline-block";
+    logoutBtn.style.display = "none";
+  }
+}
+
+async function signInAsEditor(){
+  if(!sharedAuth){
+    showToast("Firebase Auth is not available");
+    return;
+  }
+  try{
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await sharedAuth.signInWithPopup(provider);
+  }catch(e){
+    showToast("Login failed. Check Firebase Authentication settings.");
+  }
+}
+
+async function signOutEditor(){
+  if(sharedAuth) await sharedAuth.signOut();
+}
+
+function requireEditAccess(){
+  if(canEdit()) return true;
+  showToast("View only. Sign in with the owner account to edit.");
+  return false;
 }
 
 async function readSavedState(){
@@ -529,6 +632,7 @@ async function readSavedState(){
 }
 
 async function writeSavedState(payload){
+  if(!requireEditAccess()) return;
   if(sharedDbRef){
     await sharedDbRef.set(payload);
     return;
@@ -696,21 +800,25 @@ function render(){
           <span class="priority ${item.priority}">${priorityColor[item.priority]}</span>
           ${flag ? `<span class="country-flag" title="${escapeHtml(item.region)}">${flag}</span>` : ""}
         </div>
-        <span class="check">${done ? "✓":""}</span>
+        ${canEdit() ? `<span class="check">${done ? "✓":""}</span>` : ""}
       </div>
       <div class="dest">${escapeHtml(item.dest)}</div>
       <div class="region">${escapeHtml(item.region)} · ${escapeHtml(item.area)}</div>
       <div class="meta"><span>${escapeHtml(seasonLabel(item.season))}</span></div>
       ${item.notes ? '<div class="note-flag">📝 Note added</div>' : ''}
     `;
-    card.querySelector('.check').addEventListener('click', (e)=>{
-      e.stopPropagation();
-      if(state.done.has(item.id)) state.done.delete(item.id);
-      else state.done.add(item.id);
-      render();
-      updateProgress();
-      persistState();
-    });
+    const checkEl = card.querySelector('.check');
+    if(checkEl){
+      checkEl.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(!requireEditAccess()) return;
+        if(state.done.has(item.id)) state.done.delete(item.id);
+        else state.done.add(item.id);
+        render();
+        updateProgress();
+        persistState();
+      });
+    }
     card.addEventListener('click', ()=> openDetail(item.id));
     grid.appendChild(card);
   });
@@ -833,6 +941,7 @@ function openDetail(id){
   document.getElementById('detailNotes').value = item.notes || "";
   document.getElementById('detailToggleDone').textContent = state.done.has(id) ? "Mark as not visited" : "Mark as visited";
   document.getElementById('detailOverlay').classList.add('open');
+  updateAuthUI();
 }
 
 function closeDetail(){
@@ -847,6 +956,7 @@ document.getElementById('detailOverlay').addEventListener('click', (e)=>{
 });
 
 document.getElementById('detailSave').addEventListener('click', ()=>{
+  if(!requireEditAccess()) return;
   const item = findItem(state.activeId);
   if(!item) return;
   item.notes = document.getElementById('detailNotes').value.trim();
@@ -856,6 +966,7 @@ document.getElementById('detailSave').addEventListener('click', ()=>{
 });
 
 document.getElementById('detailToggleDone').addEventListener('click', ()=>{
+  if(!requireEditAccess()) return;
   const id = state.activeId;
   if(!id) return;
   if(state.done.has(id)) state.done.delete(id);
@@ -917,6 +1028,7 @@ document.getElementById('fTab').addEventListener('change', ()=>{
 populateFormAreas();
 
 function openPlaceForm(item=null){
+  if(!requireEditAccess()) return;
   editingId = item ? item.id : null;
   document.getElementById('formTitle').textContent = item ? "Edit place" : "Add a new place";
   document.getElementById('formSubtitle').textContent = item ? "Update the card details and map pin" : "It'll show up right in your list";
@@ -1009,6 +1121,7 @@ async function locateFormPlace(){
 }
 
 document.getElementById('fSubmit').addEventListener('click', ()=>{
+  if(!requireEditAccess()) return;
   const dest = document.getElementById('fDest').value.trim();
   const tab = document.getElementById('fTab').value;
   const area = document.getElementById('fArea').value;
@@ -1099,9 +1212,14 @@ function showToast(msg){
   });
 })();
 
+
+document.getElementById('loginBtn').addEventListener('click', signInAsEditor);
+document.getElementById('logoutBtn').addEventListener('click', signOutEditor);
+
 async function init(){
   initSharedSync();
   await loadState();
+  updateAuthUI();
   buildAreaChips();
   render();
   updateProgress();
