@@ -1,0 +1,1291 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#EAF5FF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Travel Bucket List">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<title>Travel Bucket List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --sky:#EAF5FF;
+    --sky-deep:#CFE9FF;
+    --blue:#2F8CFF;
+    --blue-deep:#1F6FE0;
+    --ink:#173A5E;
+    --yellow:#FFC53D;
+    --white:#FFFFFF;
+    --line: rgba(23,58,94,.12);
+    --muted:#5C7896;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--sky);
+    font-family:'Nunito', sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+  }
+
+  .sky-decor{position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden;}
+  .flight-path{ position:absolute; opacity:.35; }
+  .plane{ position:absolute; font-size:20px; opacity:.4; }
+
+  .wrap{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:44px 20px 90px;}
+
+  header{ text-align:center; margin-bottom:30px; }
+  .eyebrow{
+    font-family:'Baloo 2', sans-serif; font-weight:700; letter-spacing:.14em;
+    color:var(--blue-deep); font-size:13px; text-transform:uppercase;
+  }
+  h1{
+    font-family:'Baloo 2', sans-serif; font-weight:800;
+    font-size:clamp(32px, 6vw, 50px);
+    margin:8px 0 6px;
+    line-height:1.1;
+    color:var(--ink);
+  }
+  h1 .brush{
+    display:inline-block; position:relative; color:var(--white); padding:2px 22px;
+  }
+  h1 .brush::before{
+    content:""; position:absolute; inset:-4px -14px; z-index:-1;
+    background:var(--blue);
+    border-radius:40% 60% 55% 45% / 50% 45% 55% 50%;
+    transform:rotate(-1.2deg);
+  }
+  .sub{ color:var(--muted); font-size:15px; font-weight:700; }
+
+  .progress-card{
+    background:var(--white); border:1px solid var(--line); border-radius:16px;
+    padding:14px 20px; margin:24px 0; box-shadow:0 6px 18px rgba(23,58,94,.08);
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:space-between;
+  }
+  .progress-text{font-family:'Baloo 2',sans-serif; font-weight:700; font-size:14px; color:var(--blue-deep);}
+  .progress-track{
+    flex:1; min-width:160px; height:10px; border-radius:99px; background:var(--sky-deep);
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%; border-radius:99px;
+    background:linear-gradient(90deg, var(--yellow), var(--blue));
+    width:0%; transition:width .5s cubic-bezier(.4,1.8,.5,1);
+  }
+  .progress-count{font-family:'Baloo 2',sans-serif; font-weight:700; color:var(--ink); font-size:13px; white-space:nowrap;}
+
+  .controls{ margin:26px 0 22px; }
+  .tabs{ display:flex; justify-content:center; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
+  .tab-btn{
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:15px;
+    padding:10px 24px; border-radius:99px; border:2px solid transparent;
+    background:var(--white); color:var(--muted); cursor:pointer;
+    transition:.15s;
+  }
+  .tab-btn.active{ background:var(--blue); color:#fff; }
+
+  .search-row{ display:flex; gap:10px; justify-content:center; margin-bottom:14px; flex-wrap:wrap;}
+  .search-input{
+    font-family:'Nunito',sans-serif; font-weight:700; font-size:14px;
+    padding:10px 16px; border-radius:99px; border:1px solid var(--line);
+    background:var(--white); color:var(--ink); width:260px; max-width:70vw;
+    outline:none;
+  }
+  .search-input:focus{ border-color:var(--blue); }
+  .add-btn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:14px;
+    padding:10px 20px; border-radius:99px; border:none;
+    background:var(--yellow); color:var(--ink); cursor:pointer;
+  }
+  .add-btn:hover{ filter:brightness(1.05); }
+
+  .chip-row{ display:flex; justify-content:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .chip{
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:12.5px;
+    padding:7px 15px; border-radius:99px; border:1px solid var(--line);
+    background:#fff; color:var(--muted); cursor:pointer; transition:.15s;
+  }
+  .chip.active{ background:var(--blue); color:#fff; border-color:var(--blue); }
+
+  .chip.priority{ border-width:2px; font-weight:800; }
+  .chip.priority[data-p="all"]{ border-color:var(--blue); color:var(--blue-deep); }
+  .chip.priority[data-p="High"]{ border-color:#FF7A59; color:#FF7A59; }
+  .chip.priority[data-p="Medium"]{ border-color:#D69A00; color:#D69A00; }
+  .chip.priority[data-p="Low"]{ border-color:#39C0A6; color:#39C0A6; }
+
+  .chip.priority.active[data-p="all"]{ background:var(--blue); color:#fff; border-color:var(--blue); }
+  .chip.priority.active[data-p="High"]{ background:#FF7A59; color:#fff; border-color:#FF7A59;}
+  .chip.priority.active[data-p="Medium"]{ background:var(--yellow); color:var(--ink); border-color:var(--yellow);}
+  .chip.priority.active[data-p="Low"]{ background:#39C0A6; color:#fff; border-color:#39C0A6;}
+
+
+  .view-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 18px; flex-wrap:wrap; }
+  .view-btn{
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:14px;
+    padding:9px 20px; border-radius:99px; border:2px solid var(--line);
+    background:var(--white); color:var(--muted); cursor:pointer; transition:.15s;
+  }
+  .view-btn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .page-view{ display:none; }
+  .page-view.active{ display:block; }
+  .map-panel{
+    background:var(--white); border:1px solid var(--line); border-radius:20px;
+    padding:14px; box-shadow:0 6px 18px rgba(23,58,94,.08);
+  }
+  .map-head{ display:flex; justify-content:space-between; gap:14px; align-items:flex-start; flex-wrap:wrap; margin:4px 4px 12px; }
+  .map-title{ font-family:'Baloo 2',sans-serif; font-weight:800; font-size:20px; margin:0; }
+  .map-sub{ color:var(--muted); font-weight:700; font-size:12.5px; margin-top:2px; }
+  .map-legend{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:11.5px; font-weight:800; color:var(--muted); }
+  .legend-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:4px; box-shadow:0 0 0 2px rgba(255,255,255,.9); }
+  .legend-dot.high{ background:#FF7A59; }
+  .legend-dot.medium{ background:var(--yellow); }
+  .legend-dot.low{ background:#39C0A6; }
+  .legend-dot.done{ background:#9AA8B5; }
+  #bucketMap{ width:100%; height:560px; border-radius:16px; border:1px solid var(--line); overflow:hidden; background:var(--sky-deep); }
+  .map-empty{ display:none; text-align:center; padding:22px; color:#9CB2C7; font-family:'Baloo 2',sans-serif; font-weight:700; }
+  .map-pin{
+    width:22px; height:22px; border-radius:50% 50% 50% 0; transform:rotate(-45deg);
+    border:3px solid #fff; box-shadow:0 4px 12px rgba(23,58,94,.32);
+  }
+  .map-pin::after{
+    content:""; width:6px; height:6px; border-radius:50%; background:#fff;
+    position:absolute; left:5px; top:5px;
+  }
+  .map-pin.High{ background:#FF7A59; }
+  .map-pin.Medium{ background:#FFC53D; }
+  .map-pin.Low{ background:#39C0A6; }
+  .map-pin.done{ background:#9AA8B5; }
+  .leaflet-popup-content{ font-family:'Nunito',sans-serif; color:var(--ink); font-weight:700; min-width:190px; }
+  .popup-title{ font-family:'Baloo 2',sans-serif; font-size:16px; font-weight:800; margin-bottom:2px; }
+  .popup-meta{ color:var(--muted); font-size:12px; margin-bottom:8px; }
+  .popup-actions{ display:flex; gap:7px; flex-wrap:wrap; }
+  .popup-btn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; border:none; border-radius:99px;
+    padding:6px 10px; cursor:pointer; font-size:12px; background:var(--blue); color:#fff;
+  }
+  .popup-btn.secondary{ background:var(--sky); color:var(--ink); }
+  .card.flash{ outline:3px solid var(--yellow); box-shadow:0 0 0 6px rgba(255,197,61,.25), 0 10px 22px rgba(23,58,94,.12); }
+
+  @media (max-width:680px){ #bucketMap{ height:430px; } }
+
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr));
+    gap:16px;
+  }
+
+  .card{
+    position:relative; background:var(--white); border:1px solid var(--line);
+    border-radius:16px; padding:16px; cursor:pointer;
+    box-shadow:0 4px 12px rgba(23,58,94,.06);
+    transition:transform .15s ease, box-shadow .15s ease, opacity .3s ease;
+  }
+  .card:hover{ transform:translateY(-3px); box-shadow:0 10px 22px rgba(23,58,94,.12); }
+  .card.done{ opacity:.5; }
+  .card.done .dest{ text-decoration:line-through; text-decoration-thickness:2px; }
+
+  .badge-row{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;}
+  .badge-left{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .country-flag{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:28px; height:26px; padding:0 6px; border-radius:999px;
+    background:var(--sky); border:1px solid var(--line);
+    font-size:16px; line-height:1; box-shadow:0 2px 7px rgba(23,58,94,.06);
+  }
+  .priority{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:10.5px; text-transform:uppercase;
+    padding:4px 10px; border-radius:99px; color:#fff;
+  }
+  .priority.High{ background:#FF7A59; }
+  .priority.Medium{ background:var(--yellow); color:var(--ink); }
+  .priority.Low{ background:#39C0A6; }
+
+  .check{
+    width:24px; height:24px; border-radius:50%; border:2px solid var(--line);
+    background:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:12px; flex:0 0 auto; transition:.15s; color:#fff;
+  }
+  .check:hover{ border-color:var(--blue); }
+  .card.done .check{ background:var(--blue); border-color:var(--blue); }
+
+  .dest{ font-family:'Baloo 2', sans-serif; font-weight:700; font-size:16.5px; line-height:1.25; margin:0 0 4px; }
+  .region{ font-weight:800; font-size:12.5px; color:var(--blue-deep); margin-bottom:10px; }
+  .meta{ display:flex; gap:6px; flex-wrap:wrap; font-size:11.5px; font-weight:700; color:var(--muted); }
+  .meta span{ background:var(--sky); padding:3px 9px; border-radius:99px; }
+  .note-flag{ margin-top:8px; font-size:11.5px; color:var(--blue-deep); font-weight:800; }
+
+  .empty{ text-align:center; padding:60px 20px; font-family:'Baloo 2',sans-serif; font-weight:700; color:#9CB2C7; }
+
+  footer{ text-align:center; margin-top:50px; font-size:12.5px; color:#9CB2C7; font-weight:700; }
+
+  .overlay{
+    position:fixed; inset:0; background:rgba(23,58,94,.45); z-index:50;
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .overlay.open{ display:flex; }
+  .modal{
+    background:#fff; border-radius:20px; width:100%; max-width:460px; max-height:88vh;
+    overflow-y:auto; padding:24px; position:relative;
+  }
+  .modal-close{
+    position:absolute; top:14px; right:14px; width:30px; height:30px; border-radius:50%;
+    border:none; background:var(--sky); color:var(--ink); font-size:16px; cursor:pointer;
+  }
+  .modal h2{ font-family:'Baloo 2',sans-serif; font-size:22px; margin:0 4px 4px; padding-right:30px; }
+  .modal .modal-region{ color:var(--blue-deep); font-weight:800; font-size:13px; margin:0 4px 14px; }
+  .modal .map-frame{
+    width:100%; height:220px; border-radius:12px; border:1px solid var(--line); margin-bottom:14px;
+  }
+  .modal label{ font-family:'Baloo 2',sans-serif; font-weight:700; font-size:13px; color:var(--ink); display:block; margin:14px 4px 6px; }
+  .modal textarea{
+    width:100%; min-height:90px; border-radius:12px; border:1px solid var(--line);
+    padding:10px 12px; font-family:'Nunito',sans-serif; font-size:14px; resize:vertical; outline:none;
+  }
+  .modal textarea:focus{ border-color:var(--blue); }
+  .modal .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+  .btn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:14px; border:none;
+    border-radius:99px; padding:10px 18px; cursor:pointer;
+  }
+  .btn-primary{ background:var(--blue); color:#fff; }
+  .btn-secondary{ background:var(--sky); color:var(--ink); }
+  .btn-danger{ background:#FFE6E0; color:#C4482F; }
+
+  .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-grid .full{ grid-column:1 / -1; }
+  .form-grid label{ font-family:'Baloo 2',sans-serif; font-weight:700; font-size:12.5px; display:block; margin-bottom:5px; }
+  .form-grid input, .form-grid select{
+    width:100%; padding:9px 12px; border-radius:10px; border:1px solid var(--line);
+    font-family:'Nunito',sans-serif; font-size:13.5px; outline:none; background:#fff;
+  }
+  .form-grid input:focus, .form-grid select:focus{ border-color:var(--blue); }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; font-family:'Baloo 2',sans-serif; font-weight:700; font-size:13px;
+    padding:10px 20px; border-radius:99px; opacity:0; pointer-events:none; transition:.25s; z-index:60;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .auth-row{
+    position:fixed; top:18px; right:20px; z-index:20;
+    display:flex; justify-content:flex-end; align-items:center; gap:10px; margin:0; flex-wrap:wrap;
+    font-size:12.5px; font-weight:800; color:var(--muted);
+  }
+  .auth-btn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:13px; border:none;
+    border-radius:99px; padding:8px 15px; cursor:pointer; background:var(--ink); color:#fff;
+  }
+  .auth-btn.secondary{ background:var(--sky); color:var(--ink); border:1px solid var(--line); }
+  .editor-only.hidden{ display:none !important; }
+
+  @media (max-width:480px){
+    .form-grid{ grid-template-columns:1fr; }
+    .auth-row{ top:10px; right:10px; gap:6px; font-size:11.5px; }
+    .auth-btn{ padding:7px 12px; font-size:12px; }
+  }
+
+
+  /* PWA mobile layout */
+  @media (max-width:720px){
+    .wrap{ padding:72px 14px 72px; }
+    header{ margin-bottom:22px; }
+    h1{ font-size:clamp(30px, 10vw, 42px); }
+    .sub{ font-size:13.5px; }
+    .progress-card{ padding:12px 14px; gap:10px; margin:20px 0; }
+    .progress-track{ flex-basis:100%; order:3; }
+    .controls{ margin:20px 0 18px; }
+    .tabs, .view-row{ gap:8px; }
+    .tab-btn, .view-btn{ flex:1 1 120px; padding:10px 14px; }
+    .search-row{ align-items:stretch; }
+    .search-input{ width:100%; max-width:none; flex:1 1 100%; }
+    .add-btn{ width:100%; }
+    .chip-row{ justify-content:flex-start; overflow-x:auto; flex-wrap:nowrap; padding:2px 2px 8px; scrollbar-width:none; }
+    .chip-row::-webkit-scrollbar{ display:none; }
+    .chip{ flex:0 0 auto; }
+    .grid{ grid-template-columns:1fr; gap:12px; }
+    .card{ padding:15px; }
+    #bucketMap{ height:62vh; min-height:420px; }
+    .map-panel{ border-radius:18px; padding:10px; }
+    .map-head{ gap:8px; }
+    .map-legend{ font-size:11px; }
+    .modal{ max-width:calc(100vw - 24px); padding:20px; border-radius:18px; }
+    .modal .map-frame{ height:180px; }
+    .modal .modal-actions{ flex-direction:column; }
+    .btn{ width:100%; }
+    .toast{ width:calc(100vw - 28px); text-align:center; bottom:18px; }
+  }
+
+  @media (max-width:480px){
+    .auth-row{
+      top:calc(10px + env(safe-area-inset-top)); right:10px; left:10px;
+      justify-content:flex-end; gap:6px; font-size:11.5px;
+    }
+    .auth-btn{ padding:7px 12px; font-size:12px; }
+    .auth-row #authStatus{ max-width:48vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="sky-decor" id="skyDecor"></div>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Enjoy Your Journey</div>
+    <h1>Yu's <span class="brush">Travel</span> Bucket List</h1>
+    <div class="sub">Places I want to go, one trip at a time</div>
+  </header>
+
+  <div class="progress-card">
+    <div class="progress-text">Progress</div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-count" id="progressCount">0 / 0 visited</div>
+  </div>
+
+  <div class="controls">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="Domestic">Japan</button>
+      <button class="tab-btn" data-tab="Abroad">Abroad</button>
+    </div>
+
+    <div class="search-row">
+      <input class="search-input" id="searchInput" type="text" placeholder="Search a place...">
+      <button class="add-btn editor-only" id="addBtn">+ Add a place</button>
+    </div>
+
+    <div class="chip-row" id="areaRow"></div>
+    <div class="chip-row" id="priorityRow">
+      <button class="chip priority active" data-p="all">All priorities</button>
+      <button class="chip priority" data-p="High">High</button>
+      <button class="chip priority" data-p="Medium">Medium</button>
+      <button class="chip priority" data-p="Low">Low</button>
+    </div>
+
+    <div class="view-row">
+      <button class="view-btn active" data-view="cards">Cards</button>
+      <button class="view-btn" data-view="map">Map</button>
+    </div>
+
+    <div class="auth-row" id="authRow">
+      <span id="authStatus">View only</span>
+      <button class="auth-btn" id="loginBtn" type="button">Editor login</button>
+      <button class="auth-btn secondary" id="logoutBtn" type="button" style="display:none;">Logout</button>
+    </div>
+  </div>
+
+  <section class="page-view active" id="cardsPage">
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="emptyMsg" style="display:none;">No places match this filter yet.</div>
+  </section>
+
+  <section class="page-view" id="mapPage">
+    <div class="map-panel">
+      <div class="map-head">
+        <div>
+          <h2 class="map-title">Map View</h2>
+          <div class="map-sub" id="mapSummary">Pins show the places in your current list and filters.</div>
+        </div>
+        <div class="map-legend" aria-label="Map pin legend">
+          <span><i class="legend-dot high"></i>High</span>
+          <span><i class="legend-dot medium"></i>Medium</span>
+          <span><i class="legend-dot low"></i>Low</span>
+          <span><i class="legend-dot done"></i>Visited</span>
+        </div>
+      </div>
+      <div id="bucketMap"></div>
+      <div class="map-empty" id="mapEmptyMsg">No places match this filter yet.</div>
+    </div>
+  </section>
+
+  <footer>Made for your next adventure</footer>
+</div>
+
+<div class="overlay" id="detailOverlay">
+  <div class="modal">
+    <button class="modal-close" id="detailClose">✕</button>
+    <h2 id="detailDest"></h2>
+    <div class="modal-region" id="detailRegion"></div>
+    <iframe class="map-frame" id="detailMap" loading="lazy" src=""></iframe>
+    <label for="detailNotes">Notes</label>
+    <textarea id="detailNotes" placeholder="Add a note — what you want to do here, who to go with, restaurants to try..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-primary editor-only" id="detailSave">Save note</button>
+      <button class="btn btn-secondary editor-only" id="detailToggleDone">Mark as visited</button>
+      <button class="btn btn-secondary editor-only" id="detailEdit">Edit place</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="addOverlay">
+  <div class="modal">
+    <button class="modal-close" id="addClose">✕</button>
+    <h2 id="formTitle">Add a new place</h2>
+    <div class="modal-region" id="formSubtitle">It'll show up right in your list</div>
+    <div class="form-grid" style="margin-top:14px;">
+      <div class="full">
+        <label>Destination</label>
+        <input type="text" id="fDest" placeholder="e.g. Lisbon old town">
+      </div>
+      <div>
+        <label>List</label>
+        <select id="fTab">
+          <option value="Domestic">Japan</option>
+          <option value="Abroad">Abroad</option>
+        </select>
+      </div>
+      <div>
+        <label>Area</label>
+        <select id="fArea"></select>
+      </div>
+      <div>
+        <label>Region / Country</label>
+        <input type="text" id="fRegion" placeholder="e.g. Portugal">
+      </div>
+      <div>
+        <label>Priority</label>
+        <select id="fPriority">
+          <option value="High">High</option>
+          <option value="Medium" selected>Medium</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+      <div class="full">
+        <label>Best season</label>
+        <input type="text" id="fSeason" placeholder="e.g. Spring - Fall">
+      </div>
+      <div class="full">
+        <label>Map location</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="fLocationSearch" placeholder="Search a place to set the pin...">
+          <button type="button" class="btn btn-secondary" id="fLocateBtn" style="white-space:nowrap;">Find</button>
+        </div>
+      </div>
+      <div>
+        <label>Latitude</label>
+        <input type="number" step="0.0001" id="fLat">
+      </div>
+      <div>
+        <label>Longitude</label>
+        <input type="number" step="0.0001" id="fLon">
+      </div>
+      <div class="full">
+        <iframe class="map-frame" id="fPreviewMap" style="height:150px;" loading="lazy" src=""></iframe>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="fSubmit">Add place</button>
+      <button class="btn btn-secondary" id="addCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const AREA_OPTIONS = {
+  Domestic: ["Hokkaido","Tohoku","Kanto","Chubu","Kansai","Chugoku","Shikoku","Kyushu","Okinawa"],
+  Abroad: ["Asia","Europe","Oceania","North America"]
+};
+
+const AREA_FALLBACK_COORDS = {
+  Hokkaido:[43.0618,141.3545], Tohoku:[38.2688,140.8721], Kanto:[35.6762,139.6503],
+  Chubu:[35.1815,136.9066], Kansai:[34.6937,135.5023], Chugoku:[34.3963,132.4596],
+  Shikoku:[34.3401,134.0434], Kyushu:[33.5904,130.4017], Okinawa:[26.2124,127.6809],
+  Asia:[13.7563,100.5018], Europe:[50.1109,8.6821], Oceania:[-25.2744,133.7751],
+  "North America":[39.8283,-98.5795]
+};
+
+const REGION_COORDS = {};
+
+const DATA = {"Domestic":[{"id":"Domestic-0","dest":"Shiretoko","region":"Hokkaido","area":"Hokkaido","priority":"Medium","season":"Summer","lat":44.0756,"lon":145.0809,"notes":""},{"id":"Domestic-1","dest":"Furano / Biei","region":"Hokkaido","area":"Hokkaido","priority":"Medium","season":"Spring - Summer","lat":43.5883,"lon":142.4669,"notes":""},{"id":"Domestic-2","dest":"Hokkaido","region":"Hokkaido","area":"Hokkaido","priority":"Medium","season":"Winter","lat":43.0618,"lon":141.3545,"notes":""},{"id":"Domestic-3","dest":"Aomori","region":"Aomori","area":"Tohoku","priority":"Low","season":"Anytime","lat":40.8244,"lon":140.74,"notes":""},{"id":"Domestic-4","dest":"Ozegahara","region":"Gunma","area":"Kanto","priority":"High","season":"Spring - Fall","lat":36.9326,"lon":139.2291,"notes":""},{"id":"Domestic-5","dest":"Nikko / Oku-Nikko","region":"Tochigi","area":"Kanto","priority":"Medium","season":"Spring - Fall","lat":36.7564,"lon":139.5998,"notes":""},{"id":"Domestic-6","dest":"Fujiyoshida City","region":"Yamanashi","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":35.4875,"lon":138.8076,"notes":""},{"id":"Domestic-7","dest":"Fujikawaguchiko Town","region":"Yamanashi","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":35.5013,"lon":138.7657,"notes":""},{"id":"Domestic-8","dest":"Yamanakako Village","region":"Yamanashi","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":35.4106,"lon":138.8606,"notes":""},{"id":"Domestic-9","dest":"Mt. Fuji","region":"Shizuoka","area":"Chubu","priority":"High","season":"Summer","lat":35.3606,"lon":138.7274,"notes":""},{"id":"Domestic-10","dest":"Shirakawa-go","region":"Gifu","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":36.257,"lon":136.906,"notes":""},{"id":"Domestic-11","dest":"Utsukushigahara Highlands","region":"Nagano","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":36.2255,"lon":138.1077,"notes":""},{"id":"Domestic-12","dest":"Kurumayama Highlands","region":"Nagano","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":36.103,"lon":138.196,"notes":""},{"id":"Domestic-13","dest":"Yashimagahara Wetland","region":"Nagano","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":36.107,"lon":138.185,"notes":""},{"id":"Domestic-14","dest":"Ikenotaira Wetland","region":"Nagano","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":36.424,"lon":138.443,"notes":""},{"id":"Domestic-15","dest":"Kirikamine Highlands","region":"Nagano","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":36.1038,"lon":138.1805,"notes":""},{"id":"Domestic-16","dest":"Norikura Highlands","region":"Nagano","area":"Chubu","priority":"Medium","season":"Spring - Fall","lat":36.1244,"lon":137.631,"notes":""},{"id":"Domestic-17","dest":"Kyoto","region":"Kyoto","area":"Kansai","priority":"High","season":"Anytime","lat":35.0116,"lon":135.7681,"notes":""},{"id":"Domestic-18","dest":"Nara","region":"Nara","area":"Kansai","priority":"Medium","season":"Anytime","lat":34.6851,"lon":135.8048,"notes":""},{"id":"Domestic-19","dest":"Kumano Kodo","region":"Wakayama","area":"Kansai","priority":"Medium","season":"Spring - Fall","lat":34.314,"lon":135.776,"notes":""},{"id":"Domestic-20","dest":"Izumo Taisha Grand Shrine","region":"Shimane","area":"Chugoku","priority":"Medium","season":"Anytime","lat":35.4013,"lon":132.685,"notes":""},{"id":"Domestic-21","dest":"Shimanto River","region":"Kochi","area":"Shikoku","priority":"Medium","season":"Summer","lat":33.01,"lon":132.933,"notes":""},{"id":"Domestic-22","dest":"Kagawa","region":"Kagawa","area":"Shikoku","priority":"Medium","season":"Anytime","lat":34.3428,"lon":134.0466,"notes":""},{"id":"Domestic-23","dest":"Takachiho","region":"Miyazaki","area":"Kyushu","priority":"Medium","season":"Spring - Summer","lat":32.7117,"lon":131.3079,"notes":""},{"id":"Domestic-24","dest":"Yakushima","region":"Kagoshima","area":"Kyushu","priority":"Medium","season":"Spring - Summer","lat":30.358,"lon":130.533,"notes":""},{"id":"Domestic-25","dest":"Amami-Oshima","region":"Kagoshima","area":"Kyushu","priority":"Low","season":"Spring - Fall","lat":28.377,"lon":129.493,"notes":""},{"id":"Domestic-26","dest":"Okinawa","region":"Okinawa","area":"Okinawa","priority":"High","season":"Spring - Fall","lat":26.2124,"lon":127.6809,"notes":""},{"id":"Domestic-27","dest":"Ishigaki Island","region":"Okinawa","area":"Okinawa","priority":"High","season":"Spring - Fall","lat":24.4064,"lon":124.1754,"notes":""},{"id":"Domestic-28","dest":"Miyako Island","region":"Okinawa","area":"Okinawa","priority":"High","season":"Spring - Fall","lat":24.8056,"lon":125.2811,"notes":""},{"id":"Domestic-29","dest":"Otsuka International Museum","region":"Tokushima","area":"Shikoku","priority":"Medium","season":"Spring - Fall","lat":34.2388,"lon":134.6334,"notes":""},{"id":"Domestic-30","dest":"Amakusa (swim with dolphins)","region":"Kumamoto","area":"Kyushu","priority":"Medium","season":"Spring - Fall","lat":32.4586,"lon":130.193,"notes":""},{"id":"Domestic-31","dest":"Kagoshima","region":"Kagoshima","area":"Kyushu","priority":"Medium","season":"Spring - Fall","lat":31.5602,"lon":130.5581,"notes":""},{"id":"Domestic-32","dest":"Tottori Dunes","region":"Tottori","area":"Chugoku","priority":"Medium","season":"Anytime","lat":35.54,"lon":134.228,"notes":""},{"id":"Domestic-33","dest":"Sumida Hokusai Museum","region":"Tokyo","area":"Kanto","priority":"Medium","season":"Anytime","lat":35.6967,"lon":139.8002,"notes":""},{"id":"Domestic-34","dest":"Osaka (visit friends)","region":"Osaka","area":"Kansai","priority":"High","season":"Anytime","lat":34.6937,"lon":135.5023,"notes":""},{"id":"Domestic-35","dest":"Kobe","region":"Hyogo","area":"Kansai","priority":"Medium","season":"Anytime","lat":34.6901,"lon":135.1955,"notes":""}],"Abroad":[{"id":"Abroad-0","dest":"Anywhere in Taiwan","region":"Taiwan","area":"Asia","priority":"High","season":"Anytime","lat":25.033,"lon":121.5654,"notes":""},{"id":"Abroad-1","dest":"Busan","region":"Korea","area":"Asia","priority":"High","season":"Anytime","lat":35.1796,"lon":129.0756,"notes":""},{"id":"Abroad-2","dest":"Daegu","region":"Korea","area":"Asia","priority":"High","season":"Anytime","lat":35.8714,"lon":128.6014,"notes":""},{"id":"Abroad-3","dest":"Beijing","region":"China","area":"Asia","priority":"Medium","season":"Anytime","lat":39.9042,"lon":116.4074,"notes":""},{"id":"Abroad-4","dest":"Xi'an","region":"China","area":"Asia","priority":"Medium","season":"Anytime","lat":34.3416,"lon":108.9398,"notes":""},{"id":"Abroad-5","dest":"Chengdu","region":"China","area":"Asia","priority":"Medium","season":"Anytime","lat":30.5728,"lon":104.0668,"notes":""},{"id":"Abroad-6","dest":"Chongqing","region":"China","area":"Asia","priority":"Medium","season":"Anytime","lat":29.563,"lon":106.5516,"notes":""},{"id":"Abroad-7","dest":"Hangzhou","region":"China","area":"Asia","priority":"High","season":"Anytime","lat":30.2741,"lon":120.1551,"notes":""},{"id":"Abroad-8","dest":"Guilin","region":"China","area":"Asia","priority":"Medium","season":"Anytime","lat":25.2345,"lon":110.1799,"notes":""},{"id":"Abroad-9","dest":"Shenzhen","region":"China","area":"Asia","priority":"High","season":"Anytime","lat":22.5431,"lon":114.0579,"notes":""},{"id":"Abroad-10","dest":"Harbin","region":"China","area":"Asia","priority":"Medium","season":"Anytime","lat":45.8038,"lon":126.535,"notes":""},{"id":"Abroad-11","dest":"Mekong River","region":"Vietnam","area":"Asia","priority":"Medium","season":"Anytime","lat":10.0452,"lon":105.7469,"notes":""},{"id":"Abroad-12","dest":"Cuc Phuong National Park","region":"Vietnam","area":"Asia","priority":"Medium","season":"Anytime","lat":20.3509,"lon":105.5969,"notes":""},{"id":"Abroad-13","dest":"Anywhere in Vietnam","region":"Vietnam","area":"Asia","priority":"Medium","season":"Anytime","lat":21.0278,"lon":105.8342,"notes":""},{"id":"Abroad-14","dest":"Anywhere in Thailand","region":"Thailand","area":"Asia","priority":"Medium","season":"Anytime","lat":13.7563,"lon":100.5018,"notes":""},{"id":"Abroad-15","dest":"Anywhere safe in India","region":"India","area":"Asia","priority":"Low","season":"Anytime","lat":28.6139,"lon":77.209,"notes":""},{"id":"Abroad-16","dest":"Manila","region":"Philippines","area":"Asia","priority":"Low","season":"Anytime","lat":14.5995,"lon":120.9842,"notes":""},{"id":"Abroad-17","dest":"Anywhere in Indonesia","region":"Indonesia","area":"Asia","priority":"Low","season":"Anytime","lat":-6.2088,"lon":106.8456,"notes":""},{"id":"Abroad-18","dest":"Kuala Lumpur (shopping)","region":"Malaysia","area":"Asia","priority":"Low","season":"Anytime","lat":3.139,"lon":101.6869,"notes":""},{"id":"Abroad-19","dest":"Sydney","region":"Australia","area":"Oceania","priority":"High","season":"Anytime","lat":-33.8688,"lon":151.2093,"notes":""},{"id":"Abroad-20","dest":"Great Barrier Reef","region":"Australia","area":"Oceania","priority":"High","season":"Anytime","lat":-18.2871,"lon":147.6992,"notes":""},{"id":"Abroad-21","dest":"Uluru & Kata Tjuta","region":"Australia","area":"Oceania","priority":"High","season":"Anytime","lat":-25.3444,"lon":131.0369,"notes":""},{"id":"Abroad-22","dest":"Gold Coast","region":"Australia","area":"Oceania","priority":"High","season":"Anytime","lat":-28.0167,"lon":153.4,"notes":""},{"id":"Abroad-23","dest":"Cairns","region":"Australia","area":"Oceania","priority":"High","season":"Anytime","lat":-16.9186,"lon":145.7781,"notes":""},{"id":"Abroad-24","dest":"Perth","region":"Australia","area":"Oceania","priority":"High","season":"Anytime","lat":-31.9523,"lon":115.8613,"notes":""},{"id":"Abroad-25","dest":"Anywhere in Canada","region":"Canada","area":"North America","priority":"Medium","season":"Anytime","lat":45.4215,"lon":-75.6972,"notes":""},{"id":"Abroad-26","dest":"Anywhere in the USA","region":"USA","area":"North America","priority":"Medium","season":"Anytime","lat":38.9072,"lon":-77.0369,"notes":""},{"id":"Abroad-27","dest":"Anywhere in New Zealand","region":"New Zealand","area":"Oceania","priority":"Medium","season":"Anytime","lat":-41.2865,"lon":174.7762,"notes":""},{"id":"Abroad-28","dest":"Anywhere in Uzbekistan","region":"Uzbekistan","area":"Asia","priority":"Medium","season":"Anytime","lat":41.2995,"lon":69.2401,"notes":""},{"id":"Abroad-29","dest":"Anywhere in Kazakhstan","region":"Kazakhstan","area":"Asia","priority":"Medium","season":"Anytime","lat":51.1694,"lon":71.4491,"notes":""},{"id":"Abroad-30","dest":"Anywhere in Mongolia","region":"Mongolia","area":"Asia","priority":"Medium","season":"Anytime","lat":47.8864,"lon":106.9057,"notes":""},{"id":"Abroad-31","dest":"Anywhere in Kyrgyzstan","region":"Kyrgyzstan","area":"Asia","priority":"Medium","season":"Anytime","lat":42.8746,"lon":74.5698,"notes":""},{"id":"Abroad-32","dest":"Anywhere in Iceland","region":"Iceland","area":"Europe","priority":"Medium","season":"Anytime","lat":64.1466,"lon":-21.9426,"notes":""},{"id":"Abroad-33","dest":"Anywhere in Ireland","region":"Ireland","area":"Europe","priority":"Medium","season":"Anytime","lat":53.3498,"lon":-6.2603,"notes":""},{"id":"Abroad-34","dest":"Anywhere in the UK","region":"United Kingdom","area":"Europe","priority":"Medium","season":"Anytime","lat":51.5074,"lon":-0.1278,"notes":""},{"id":"Abroad-35","dest":"Anywhere in Italy","region":"Italy","area":"Europe","priority":"Medium","season":"Anytime","lat":41.9028,"lon":12.4964,"notes":""},{"id":"Abroad-36","dest":"Anywhere in Estonia","region":"Estonia","area":"Europe","priority":"Medium","season":"Anytime","lat":59.437,"lon":24.7536,"notes":""},{"id":"Abroad-37","dest":"Anywhere in Austria","region":"Austria","area":"Europe","priority":"Medium","season":"Anytime","lat":48.2082,"lon":16.3738,"notes":""},{"id":"Abroad-38","dest":"Anywhere in the Netherlands","region":"Netherlands","area":"Europe","priority":"Medium","season":"Anytime","lat":52.3676,"lon":4.9041,"notes":""},{"id":"Abroad-39","dest":"Anywhere in Greece","region":"Greece","area":"Europe","priority":"Medium","season":"Anytime","lat":37.9838,"lon":23.7275,"notes":""},{"id":"Abroad-40","dest":"Anywhere in Croatia","region":"Croatia","area":"Europe","priority":"Medium","season":"Anytime","lat":45.815,"lon":15.9819,"notes":""},{"id":"Abroad-41","dest":"Anywhere in Switzerland","region":"Switzerland","area":"Europe","priority":"Medium","season":"Anytime","lat":46.948,"lon":7.4474,"notes":""},{"id":"Abroad-42","dest":"Anywhere in Sweden","region":"Sweden","area":"Europe","priority":"Medium","season":"Anytime","lat":59.3293,"lon":18.0686,"notes":""},{"id":"Abroad-43","dest":"Anywhere in Spain","region":"Spain","area":"Europe","priority":"Medium","season":"Anytime","lat":40.4168,"lon":-3.7038,"notes":""},{"id":"Abroad-44","dest":"Anywhere in Czechia","region":"Czech Republic","area":"Europe","priority":"Medium","season":"Anytime","lat":50.0755,"lon":14.4378,"notes":""},{"id":"Abroad-45","dest":"Anywhere in Denmark","region":"Denmark","area":"Europe","priority":"Medium","season":"Anytime","lat":55.6761,"lon":12.5683,"notes":""},{"id":"Abroad-46","dest":"Anywhere in Germany","region":"Germany","area":"Europe","priority":"Medium","season":"Anytime","lat":52.52,"lon":13.405,"notes":""},{"id":"Abroad-47","dest":"Anywhere in Norway","region":"Norway","area":"Europe","priority":"Medium","season":"Anytime","lat":59.9139,"lon":10.7522,"notes":""},{"id":"Abroad-48","dest":"Anywhere in Hungary","region":"Hungary","area":"Europe","priority":"Medium","season":"Anytime","lat":47.4979,"lon":19.0402,"notes":""},{"id":"Abroad-49","dest":"Anywhere in Finland","region":"Finland","area":"Europe","priority":"Medium","season":"Anytime","lat":60.1699,"lon":24.9384,"notes":""},{"id":"Abroad-50","dest":"Anywhere in France","region":"France","area":"Europe","priority":"Medium","season":"Anytime","lat":48.8566,"lon":2.3522,"notes":""},{"id":"Abroad-51","dest":"Anywhere in Bulgaria","region":"Bulgaria","area":"Europe","priority":"Medium","season":"Anytime","lat":42.6977,"lon":23.3219,"notes":""},{"id":"Abroad-52","dest":"Anywhere in Belarus","region":"Belarus","area":"Europe","priority":"Medium","season":"Anytime","lat":53.9006,"lon":27.559,"notes":""},{"id":"Abroad-53","dest":"Anywhere in Belgium","region":"Belgium","area":"Europe","priority":"Medium","season":"Anytime","lat":50.8503,"lon":4.3517,"notes":""},{"id":"Abroad-54","dest":"Anywhere in Poland","region":"Poland","area":"Europe","priority":"Medium","season":"Anytime","lat":52.2297,"lon":21.0122,"notes":""},{"id":"Abroad-55","dest":"Anywhere in Portugal","region":"Portugal","area":"Europe","priority":"Medium","season":"Anytime","lat":38.7223,"lon":-9.1393,"notes":""},{"id":"Abroad-56","dest":"Anywhere in Malta","region":"Malta","area":"Europe","priority":"Medium","season":"Anytime","lat":35.8989,"lon":14.5146,"notes":""},{"id":"Abroad-57","dest":"Monaco","region":"Monaco","area":"Europe","priority":"Medium","season":"Anytime","lat":43.7384,"lon":7.4246,"notes":""},{"id":"Abroad-58","dest":"Anywhere in Moldova","region":"Moldova","area":"Europe","priority":"Medium","season":"Anytime","lat":47.0105,"lon":28.8638,"notes":""},{"id":"Abroad-59","dest":"Anywhere in Montenegro","region":"Montenegro","area":"Europe","priority":"Medium","season":"Anytime","lat":42.4304,"lon":19.2594,"notes":""},{"id":"Abroad-60","dest":"Anywhere in Latvia","region":"Latvia","area":"Europe","priority":"Medium","season":"Anytime","lat":56.9496,"lon":24.1052,"notes":""},{"id":"Abroad-61","dest":"Anywhere in Lithuania","region":"Lithuania","area":"Europe","priority":"Medium","season":"Anytime","lat":54.6872,"lon":25.2797,"notes":""},{"id":"Abroad-62","dest":"Anywhere in Romania","region":"Romania","area":"Europe","priority":"Medium","season":"Anytime","lat":44.4268,"lon":26.1025,"notes":""},{"id":"Abroad-63","dest":"Luxembourg","region":"Luxembourg","area":"Europe","priority":"Medium","season":"Anytime","lat":49.6116,"lon":6.1319,"notes":""},{"id":"Abroad-64","dest":"Anywhere in Russia","region":"Russia","area":"Europe","priority":"Medium","season":"Anytime","lat":55.7558,"lon":37.6173,"notes":""},{"id":"Abroad-65","dest":"Anywhere in Cyprus","region":"Cyprus","area":"Europe","priority":"Medium","season":"Anytime","lat":35.1856,"lon":33.3823,"notes":""},{"id":"Abroad-66","dest":"Anywhere in Turkey","region":"Turkey","area":"Europe","priority":"Medium","season":"Anytime","lat":39.9334,"lon":32.8597,"notes":""},{"id":"Abroad-67","dest":"Anywhere in Armenia","region":"Armenia","area":"Asia","priority":"Medium","season":"Anytime","lat":40.1792,"lon":44.4991,"notes":""},{"id":"Abroad-68","dest":"Anywhere in Azerbaijan","region":"Azerbaijan","area":"Asia","priority":"Medium","season":"Anytime","lat":40.4093,"lon":49.8671,"notes":""}]};
+
+Object.values(DATA).flat().forEach(item=>{
+  const key = regionKey(item.region);
+  if(!(key in REGION_COORDS)) REGION_COORDS[key] = [item.lat, item.lon];
+});
+
+const PRISTINE = {};
+Object.values(DATA).flat().forEach(item=>{
+  PRISTINE[item.id] = {
+    dest:item.dest, region:item.region, area:item.area,
+    priority:item.priority, season:item.season, lat:item.lat, lon:item.lon
+  };
+});
+
+const state = {
+  tab:"Domestic",
+  area:"all",
+  priority:"all",
+  search:"",
+  view:"cards",
+  done:new Set(),
+  activeId:null
+};
+
+const STORAGE_KEY = "travel-bucket-list-v1";
+
+/*
+  Shared editing setup
+  --------------------
+  A static HTML file cannot save edits for every visitor by itself.
+  To make edits persist for everyone opening the same URL, connect this page to a shared database.
+
+  Quick setup option: Firebase Realtime Database
+  1) Create a Firebase project and a Realtime Database.
+  2) Set the database rules to allow the access level you want.
+     For a private bucket list, do not leave public write access enabled long-term.
+  3) Replace the placeholder values below and change enabled to true.
+  4) Upload this HTML file to GitHub Pages or another static host.
+
+  Until SHARED_SYNC.enabled is true and the Firebase values are filled in, edits are saved only in the
+  current browser via localStorage, with window.storage used when available.
+*/
+const SHARED_SYNC = {
+  enabled: true,
+  // Replace this with the Google account email that should be allowed to edit.
+  // Visitors who are not signed in as this email will see the page in view-only mode.
+  ownerEmail: "yuu.yuu.0511.oira@gmail.com",
+  firebaseConfig: {
+    apiKey: "AIzaSyD3TPcivokFko0stqbwBORlHbK0RApKgi4",
+    authDomain: "yu-s-travel-bucket-list.firebaseapp.com",
+    databaseURL: "https://yu-s-travel-bucket-list-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    projectId: "yu-s-travel-bucket-list",
+    storageBucket: "yu-s-travel-bucket-list.firebasestorage.app",
+    messagingSenderId: "896926164105",
+    appId: "1:896926164105:web:fdc8766e9059c674459258"
+  },
+  databasePath: "travel-bucket-list/state"
+};
+
+let editingId = null;
+let sharedDbRef = null;
+let sharedAuth = null;
+let currentUser = null;
+
+function hasSharedSyncConfig(){
+  const cfg = SHARED_SYNC.firebaseConfig || {};
+  return SHARED_SYNC.enabled &&
+    typeof firebase !== "undefined" &&
+    cfg.apiKey && !cfg.apiKey.startsWith("YOUR_") &&
+    cfg.databaseURL && !cfg.databaseURL.includes("YOUR_PROJECT") &&
+    cfg.projectId && !cfg.projectId.startsWith("YOUR_");
+}
+
+function initSharedSync(){
+  if(!hasSharedSyncConfig()) return;
+  if(!firebase.apps.length) firebase.initializeApp(SHARED_SYNC.firebaseConfig);
+  sharedDbRef = firebase.database().ref(SHARED_SYNC.databasePath);
+  if(firebase.auth){
+    sharedAuth = firebase.auth();
+    sharedAuth.onAuthStateChanged(user=>{
+      currentUser = user || null;
+      updateAuthUI();
+      render();
+    });
+  }
+}
+
+function isOwnerUser(){
+  const ownerEmail = String(SHARED_SYNC.ownerEmail || "").trim().toLowerCase();
+  if(!ownerEmail || ownerEmail.includes("PASTE_YOUR")) return false;
+  return !!(currentUser && currentUser.email && currentUser.email.toLowerCase() === ownerEmail);
+}
+
+function canEdit(){
+  if(SHARED_SYNC.enabled) return isOwnerUser();
+  return true;
+}
+
+function updateAuthUI(){
+  const status = document.getElementById('authStatus');
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const allowed = canEdit();
+  document.querySelectorAll('.editor-only').forEach(el=>el.classList.toggle('hidden', !allowed));
+  const notes = document.getElementById('detailNotes');
+  if(notes) notes.readOnly = !allowed;
+  if(!status || !loginBtn || !logoutBtn) return;
+  if(!SHARED_SYNC.enabled){
+    status.textContent = "Local edit mode";
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "none";
+    return;
+  }
+  if(!SHARED_SYNC.ownerEmail || SHARED_SYNC.ownerEmail.includes("PASTE_YOUR")){
+    status.textContent = "View only — set ownerEmail in the HTML";
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "none";
+    return;
+  }
+  if(allowed){
+    status.textContent = `Editor mode: ${currentUser.email}`;
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "inline-block";
+  } else if(currentUser){
+    status.textContent = `View only: ${currentUser.email}`;
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "inline-block";
+  } else {
+    status.textContent = "View only";
+    loginBtn.style.display = "inline-block";
+    logoutBtn.style.display = "none";
+  }
+}
+
+async function signInAsEditor(){
+  if(!sharedAuth){
+    showToast("Firebase Auth is not available");
+    return;
+  }
+  try{
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await sharedAuth.signInWithPopup(provider);
+  }catch(e){
+    showToast("Login failed. Check Firebase Authentication settings.");
+  }
+}
+
+async function signOutEditor(){
+  if(sharedAuth) await sharedAuth.signOut();
+}
+
+function requireEditAccess(){
+  if(canEdit()) return true;
+  showToast("View only. Sign in with the owner account to edit.");
+  return false;
+}
+
+async function readSavedState(){
+  if(sharedDbRef){
+    const snapshot = await sharedDbRef.get();
+    return snapshot.exists() ? snapshot.val() : null;
+  }
+  if(window.storage && typeof window.storage.get === "function"){
+    const res = await window.storage.get(STORAGE_KEY, false);
+    return res && res.value ? JSON.parse(res.value) : null;
+  }
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function writeSavedState(payload){
+  if(!requireEditAccess()) return;
+  if(sharedDbRef){
+    await sharedDbRef.set(payload);
+    return;
+  }
+  if(window.storage && typeof window.storage.set === "function"){
+    await window.storage.set(STORAGE_KEY, JSON.stringify(payload), false);
+    return;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+}
+
+function applySavedState(parsed){
+  if(!parsed) return;
+  if(parsed.done) state.done = new Set(parsed.done);
+  // backward compatibility with the older notes-only save format
+  if(parsed.notes){
+    Object.entries(parsed.notes).forEach(([id, note])=>{
+      const item = findItem(id);
+      if(item) item.notes = note;
+    });
+  }
+  if(parsed.added){
+    parsed.added.forEach(item=>{
+      if(!DATA[item.tab]) return;
+      if(!findItem(item.id)) DATA[item.tab].push(item);
+    });
+  }
+  // full field-level overrides (edits to built-in cards, including moved map pins)
+  if(parsed.overrides){
+    Object.entries(parsed.overrides).forEach(([id, fields])=>{
+      const item = findItem(id);
+      if(item) Object.assign(item, fields);
+    });
+  }
+}
+
+async function loadState(){
+  try{
+    applySavedState(await readSavedState());
+  }catch(e){ /* no saved state yet, or storage unavailable */ }
+}
+
+async function persistState(){
+  try{
+    const overrides = {};
+    const added = [];
+    Object.entries(DATA).forEach(([tab, list])=>{
+      list.forEach(item=>{
+        if(PRISTINE[item.id]){
+          const base = PRISTINE[item.id];
+          const diff = {};
+          ["dest","region","area","priority","season","lat","lon"].forEach(k=>{
+            if(item[k] !== base[k]) diff[k] = item[k];
+          });
+          if(item.notes) diff.notes = item.notes;
+          if(Object.keys(diff).length) overrides[item.id] = diff;
+        } else {
+          added.push({...item, tab});
+        }
+      });
+    });
+    await writeSavedState({
+      done:[...state.done], overrides, added
+    });
+  }catch(e){ /* storage unavailable, changes stay in-memory only */ }
+}
+
+function findItem(id){
+  for(const list of Object.values(DATA)){
+    const found = list.find(i=>i.id===id);
+    if(found) return found;
+  }
+  return null;
+}
+
+function totalCount(){
+  return DATA.Domestic.length + DATA.Abroad.length;
+}
+
+function seasonLabel(s){ return s || "Anytime"; }
+
+const priorityColor = {High:"High", Medium:"Medium", Low:"Low"};
+
+const COUNTRY_CODE_BY_REGION = {
+  "taiwan":"TW", "korea":"KR", "south korea":"KR", "china":"CN", "vietnam":"VN", "thailand":"TH",
+  "india":"IN", "philippine":"PH", "philippines":"PH", "indonesia":"ID", "malaysia":"MY",
+  "australia":"AU", "canada":"CA", "usa":"US", "u.s.a.":"US", "united states":"US", "united states of america":"US",
+  "newzealand":"NZ", "new zealand":"NZ", "uzebekistan":"UZ", "uzbekistan":"UZ", "kazaghstan":"KZ", "kazakhstan":"KZ",
+  "mongol":"MN", "mongolia":"MN", "kyrgyzstan":"KG", "iceland":"IS", "ireland":"IE",
+  "united kingdom":"GB", "uk":"GB", "italy":"IT", "estonia":"EE", "austria":"AT", "netherlands":"NL",
+  "greece":"GR", "croatia":"HR", "switzerland":"CH", "sweden":"SE", "spain":"ES",
+  "czech republic":"CZ", "czechia":"CZ", "denmark":"DK", "germany":"DE", "norway":"NO", "hungary":"HU",
+  "finland":"FI", "france":"FR", "bulgaria":"BG", "belarus":"BY", "belgium":"BE", "poland":"PL",
+  "portugal":"PT", "malta":"MT", "monaco":"MC", "moldova":"MD", "montenegro":"ME", "latvia":"LV",
+  "lithuania":"LT", "romania":"RO", "luxembourg":"LU", "russia":"RU", "cyprus":"CY", "turkey":"TR",
+  "armenia":"AM", "azerbaijan":"AZ"
+};
+
+function regionKey(region){
+  return String(region || "").trim().toLowerCase().replace(/\s+/g," ");
+}
+
+function flagEmojiFromCode(code){
+  if(!code || code.length !== 2) return "";
+  return [...code.toUpperCase()].map(c=>String.fromCodePoint(127397 + c.charCodeAt(0))).join("");
+}
+
+function countryFlag(region){
+  return flagEmojiFromCode(COUNTRY_CODE_BY_REGION[regionKey(region)]);
+}
+
+function buildAreaChips(){
+  const row = document.getElementById('areaRow');
+  row.innerHTML = "";
+  const allChip = document.createElement('button');
+  allChip.className = "chip area active";
+  allChip.dataset.a = "all";
+  allChip.textContent = "All areas";
+  row.appendChild(allChip);
+  AREA_OPTIONS[state.tab].forEach(a=>{
+    const c = document.createElement('button');
+    c.className = "chip area";
+    c.dataset.a = a;
+    c.textContent = a;
+    row.appendChild(c);
+  });
+  row.querySelectorAll('.chip.area').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      row.querySelectorAll('.chip.area').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      state.area = chip.dataset.a;
+      render();
+    });
+  });
+}
+
+function getFilteredList(){
+  return DATA[state.tab].filter(item=>{
+    if(state.area!=="all" && item.area!==state.area) return false;
+    if(state.priority!=="all" && item.priority!==state.priority) return false;
+    if(state.search){
+      const s = state.search.toLowerCase();
+      if(!item.dest.toLowerCase().includes(s) && !item.region.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+}
+
+function render(){
+  const grid = document.getElementById('grid');
+  const list = getFilteredList();
+
+  grid.innerHTML = "";
+  document.getElementById('emptyMsg').style.display = list.length ? "none":"block";
+
+  list.forEach(item=>{
+    const done = state.done.has(item.id);
+    const flag = state.tab === "Abroad" ? countryFlag(item.region) : "";
+    const card = document.createElement('div');
+    card.className = "card" + (done ? " done":"");
+    card.dataset.id = item.id;
+    card.innerHTML = `
+      <div class="badge-row">
+        <div class="badge-left">
+          <span class="priority ${item.priority}">${priorityColor[item.priority]}</span>
+          ${flag ? `<span class="country-flag" title="${escapeHtml(item.region)}">${flag}</span>` : ""}
+        </div>
+        ${canEdit() ? `<span class="check">${done ? "✓":""}</span>` : ""}
+      </div>
+      <div class="dest">${escapeHtml(item.dest)}</div>
+      <div class="region">${escapeHtml(item.region)} · ${escapeHtml(item.area)}</div>
+      <div class="meta"><span>${escapeHtml(seasonLabel(item.season))}</span></div>
+      ${item.notes ? '<div class="note-flag">📝 Note added</div>' : ''}
+    `;
+    const checkEl = card.querySelector('.check');
+    if(checkEl){
+      checkEl.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(!requireEditAccess()) return;
+        if(state.done.has(item.id)) state.done.delete(item.id);
+        else state.done.add(item.id);
+        render();
+        updateProgress();
+        persistState();
+      });
+    }
+    card.addEventListener('click', ()=> openDetail(item.id));
+    grid.appendChild(card);
+  });
+  renderMap();
+}
+
+let bucketMap = null;
+let mapLayer = null;
+const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+function initBucketMap(){
+  const mapEl = document.getElementById('bucketMap');
+  if(bucketMap || !mapEl || typeof L === "undefined") return;
+  bucketMap = L.map('bucketMap', { scrollWheelZoom:true });
+  L.tileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom:18 }).addTo(bucketMap);
+  mapLayer = L.layerGroup().addTo(bucketMap);
+  bucketMap.on('popupopen', (e)=>{
+    const popupEl = e.popup.getElement();
+    if(!popupEl) return;
+    popupEl.querySelectorAll('[data-open-detail]').forEach(btn=>{
+      btn.addEventListener('click', ()=> openDetail(btn.dataset.openDetail));
+    });
+    popupEl.querySelectorAll('[data-show-card]').forEach(btn=>{
+      btn.addEventListener('click', ()=> showCardFromMap(btn.dataset.showCard));
+    });
+  });
+}
+
+function renderMap(){
+  if(state.view !== "map") return;
+  initBucketMap();
+  const list = getFilteredList().filter(item=>Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)));
+  document.getElementById('mapSummary').textContent = `${list.length} place${list.length === 1 ? "" : "s"} shown · ${state.tab === "Domestic" ? "Japan" : "Abroad"}`;
+  document.getElementById('mapEmptyMsg').style.display = list.length ? "none" : "block";
+  if(!bucketMap || !mapLayer) return;
+  mapLayer.clearLayers();
+  const bounds = [];
+  list.forEach(item=>{
+    const done = state.done.has(item.id);
+    const icon = L.divIcon({
+      className:"",
+      html:`<div class="map-pin ${done ? "done" : item.priority}" title="${escapeHtml(item.dest)}"></div>`,
+      iconSize:[22,22],
+      iconAnchor:[11,22],
+      popupAnchor:[0,-20]
+    });
+    const marker = L.marker([Number(item.lat), Number(item.lon)], {icon}).addTo(mapLayer);
+    marker.bindPopup(`
+      <div class="popup-title">${escapeHtml(item.dest)}</div>
+      <div class="popup-meta">${escapeHtml(item.region)} · ${escapeHtml(item.area)} · ${done ? "Visited" : escapeHtml(item.priority)}</div>
+      <div class="popup-actions">
+        <button class="popup-btn" data-open-detail="${item.id}">Details</button>
+        <button class="popup-btn secondary" data-show-card="${item.id}">Show card</button>
+      </div>
+    `);
+    bounds.push([Number(item.lat), Number(item.lon)]);
+  });
+  setTimeout(()=>{
+    bucketMap.invalidateSize();
+    if(bounds.length === 1) bucketMap.setView(bounds[0], state.tab === "Domestic" ? 7 : 5);
+    else if(bounds.length > 1) bucketMap.fitBounds(bounds, {padding:[32,32], maxZoom:6});
+    else bucketMap.setView(state.tab === "Domestic" ? [36.2, 138.2] : [20, 20], state.tab === "Domestic" ? 5 : 2);
+  }, 0);
+}
+
+function switchView(view){
+  state.view = view;
+  document.querySelectorAll('.view-btn').forEach(btn=>btn.classList.toggle('active', btn.dataset.view===view));
+  document.getElementById('cardsPage').classList.toggle('active', view === "cards");
+  document.getElementById('mapPage').classList.toggle('active', view === "map");
+  if(view === "map") renderMap();
+}
+
+function showCardFromMap(id){
+  const item = findItem(id);
+  if(!item) return;
+  switchView("cards");
+  setTimeout(()=>{
+    const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if(!card){
+      showToast("This place is hidden by the current filter");
+      return;
+    }
+    card.scrollIntoView({behavior:"smooth", block:"center"});
+    card.classList.add('flash');
+    setTimeout(()=>card.classList.remove('flash'), 1600);
+  }, 50);
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function updateProgress(){
+  const total = totalCount();
+  const done = state.done.size;
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('progressFill').style.width = pct + "%";
+  document.getElementById('progressCount').textContent = `${done} / ${total} visited`;
+}
+
+function mapUrl(lat, lon){
+  const latitude = Number(lat);
+  const longitude = Number(lon);
+  const d = 0.18;
+  const bbox = [longitude-d, latitude-d*0.6, longitude+d, latitude+d*0.6].join(',');
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+}
+
+function openDetail(id){
+  const item = findItem(id);
+  if(!item) return;
+  state.activeId = id;
+  document.getElementById('detailDest').textContent = item.dest;
+  document.getElementById('detailRegion').textContent = `${item.region} · ${item.area} · ${seasonLabel(item.season)}`;
+  document.getElementById('detailMap').src = mapUrl(item.lat, item.lon);
+  document.getElementById('detailNotes').value = item.notes || "";
+  document.getElementById('detailToggleDone').textContent = state.done.has(id) ? "Mark as not visited" : "Mark as visited";
+  document.getElementById('detailOverlay').classList.add('open');
+  updateAuthUI();
+}
+
+function closeDetail(){
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.getElementById('detailMap').src = "";
+  state.activeId = null;
+}
+
+document.getElementById('detailClose').addEventListener('click', closeDetail);
+document.getElementById('detailOverlay').addEventListener('click', (e)=>{
+  if(e.target.id==='detailOverlay') closeDetail();
+});
+
+document.getElementById('detailSave').addEventListener('click', ()=>{
+  if(!requireEditAccess()) return;
+  const item = findItem(state.activeId);
+  if(!item) return;
+  item.notes = document.getElementById('detailNotes').value.trim();
+  render();
+  persistState();
+  showToast("Note saved");
+});
+
+document.getElementById('detailToggleDone').addEventListener('click', ()=>{
+  if(!requireEditAccess()) return;
+  const id = state.activeId;
+  if(!id) return;
+  if(state.done.has(id)) state.done.delete(id);
+  else state.done.add(id);
+  document.getElementById('detailToggleDone').textContent = state.done.has(id) ? "Mark as not visited" : "Mark as visited";
+  render();
+  updateProgress();
+  persistState();
+});
+
+
+document.querySelectorAll('.view-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchView(btn.dataset.view));
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.tab = btn.dataset.tab;
+    state.area = "all";
+    buildAreaChips();
+    render();
+  });
+});
+
+document.querySelectorAll('.chip.priority').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    document.querySelectorAll('.chip.priority').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    state.priority = chip.dataset.p;
+    render();
+  });
+});
+
+let searchTimer=null;
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(()=>{
+    state.search = e.target.value.trim();
+    render();
+  }, 150);
+});
+
+function populateFormAreas(){
+  const tab = document.getElementById('fTab').value;
+  const areaSelect = document.getElementById('fArea');
+  areaSelect.innerHTML = "";
+  AREA_OPTIONS[tab].forEach(a=>{
+    const opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    areaSelect.appendChild(opt);
+  });
+}
+document.getElementById('fTab').addEventListener('change', ()=>{
+  populateFormAreas();
+  updatePreviewMap();
+});
+populateFormAreas();
+
+function openPlaceForm(item=null){
+  if(!requireEditAccess()) return;
+  editingId = item ? item.id : null;
+  document.getElementById('formTitle').textContent = item ? "Edit place" : "Add a new place";
+  document.getElementById('formSubtitle').textContent = item ? "Update the card details and map pin" : "It'll show up right in your list";
+  document.getElementById('fSubmit').textContent = item ? "Save changes" : "Add place";
+  document.getElementById('fDest').value = item ? item.dest : "";
+  const tab = item ? (DATA.Domestic.some(i=>i.id===item.id) ? "Domestic" : "Abroad") : state.tab;
+  document.getElementById('fTab').value = tab;
+  populateFormAreas();
+  document.getElementById('fArea').value = item ? item.area : AREA_OPTIONS[tab][0];
+  document.getElementById('fRegion').value = item ? item.region : "";
+  document.getElementById('fPriority').value = item ? item.priority : "Medium";
+  document.getElementById('fSeason').value = item ? item.season : "";
+  document.getElementById('fLocationSearch').value = item ? `${item.dest}, ${item.region}` : "";
+  document.getElementById('fLat').value = item ? item.lat : "";
+  document.getElementById('fLon').value = item ? item.lon : "";
+  updatePreviewMap();
+  document.getElementById('addOverlay').classList.add('open');
+}
+
+document.getElementById('addBtn').addEventListener('click', ()=> openPlaceForm());
+document.getElementById('detailEdit').addEventListener('click', ()=>{
+  const item = findItem(state.activeId);
+  if(!item) return;
+  closeDetail();
+  openPlaceForm(item);
+});
+document.getElementById('addClose').addEventListener('click', closeAdd);
+document.getElementById('addCancel').addEventListener('click', closeAdd);
+document.getElementById('addOverlay').addEventListener('click', (e)=>{
+  if(e.target.id==='addOverlay') closeAdd();
+});
+function closeAdd(){
+  document.getElementById('addOverlay').classList.remove('open');
+  editingId = null;
+  document.getElementById('fDest').value = "";
+  document.getElementById('fRegion').value = "";
+  document.getElementById('fSeason').value = "";
+  document.getElementById('fLocationSearch').value = "";
+  document.getElementById('fLat').value = "";
+  document.getElementById('fLon').value = "";
+  document.getElementById('fPreviewMap').src = "";
+}
+
+function getFormCoords(){
+  const lat = parseFloat(document.getElementById('fLat').value);
+  const lon = parseFloat(document.getElementById('fLon').value);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? [lat, lon] : null;
+}
+
+function updatePreviewMap(){
+  const coords = getFormCoords();
+  document.getElementById('fPreviewMap').src = coords ? mapUrl(coords[0], coords[1]) : "";
+}
+
+document.getElementById('fLat').addEventListener('input', updatePreviewMap);
+document.getElementById('fLon').addEventListener('input', updatePreviewMap);
+document.getElementById('fLocationSearch').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    locateFormPlace();
+  }
+});
+document.getElementById('fLocateBtn').addEventListener('click', locateFormPlace);
+
+async function locateFormPlace(){
+  const dest = document.getElementById('fDest').value.trim();
+  const region = document.getElementById('fRegion').value.trim();
+  const area = document.getElementById('fArea').value;
+  const typed = document.getElementById('fLocationSearch').value.trim();
+  const query = typed || [dest, region, area].filter(Boolean).join(', ');
+  if(!query){
+    showToast("Enter a place to search");
+    return;
+  }
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, {headers:{"Accept":"application/json"}});
+    const results = await res.json();
+    if(!results.length){
+      showToast("No map result found");
+      return;
+    }
+    document.getElementById('fLat').value = Number(results[0].lat).toFixed(6);
+    document.getElementById('fLon').value = Number(results[0].lon).toFixed(6);
+    updatePreviewMap();
+    showToast("Map pin updated");
+  }catch(e){
+    showToast("Map search unavailable. Enter latitude and longitude manually.");
+  }
+}
+
+document.getElementById('fSubmit').addEventListener('click', ()=>{
+  if(!requireEditAccess()) return;
+  const dest = document.getElementById('fDest').value.trim();
+  const tab = document.getElementById('fTab').value;
+  const area = document.getElementById('fArea').value;
+  const region = document.getElementById('fRegion').value.trim() || area;
+  const priority = document.getElementById('fPriority').value;
+  const season = document.getElementById('fSeason').value.trim() || "Anytime";
+
+  if(!dest){
+    showToast("Please enter a destination name");
+    return;
+  }
+
+  const key = regionKey(region);
+  const manualCoords = getFormCoords();
+  const coords = manualCoords || REGION_COORDS[key] || AREA_FALLBACK_COORDS[area];
+
+  if(editingId){
+    const item = findItem(editingId);
+    if(!item) return;
+    Object.values(DATA).forEach(list=>{
+      const idx = list.findIndex(i=>i.id===editingId);
+      if(idx >= 0) list.splice(idx, 1);
+    });
+    Object.assign(item, {dest, region, area, priority, season, lat:coords[0], lon:coords[1]});
+    DATA[tab].push(item);
+    REGION_COORDS[key] = coords;
+    state.tab = tab;
+    showToast(`${dest} updated`);
+  } else {
+    const id = tab + "-custom-" + Date.now();
+    const item = { id, dest, region, area, priority, season, lat:coords[0], lon:coords[1], notes:"", custom:true };
+    DATA[tab].push(item);
+    REGION_COORDS[key] = coords;
+    state.tab = tab;
+    showToast(`${dest} added to your list`);
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  state.area = "all";
+  buildAreaChips();
+  render();
+  updateProgress();
+  persistState();
+  closeAdd();
+});
+
+let toastTimer=null;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+(function drawDecor(){
+  const decor = document.getElementById('skyDecor');
+  const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("width","100%");
+  svg.setAttribute("height","100%");
+  svg.style.position="absolute"; svg.style.inset="0";
+  const paths = [
+    "M -50,120 C 200,40 400,200 700,80 S 1100,160 1400,60",
+    "M -50,600 C 250,520 450,680 750,560 S 1150,640 1450,520"
+  ];
+  paths.forEach(d=>{
+    const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d", d);
+    p.setAttribute("stroke", "#2F8CFF");
+    p.setAttribute("stroke-width","2");
+    p.setAttribute("stroke-dasharray","6 8");
+    p.setAttribute("fill","none");
+    p.setAttribute("opacity","0.18");
+    svg.appendChild(p);
+  });
+  decor.appendChild(svg);
+
+  const planeEmojis = ["✈️","✈️"];
+  const positions = [[6,10],[80,58]];
+  positions.forEach((pos,i)=>{
+    const el = document.createElement('div');
+    el.className = "plane";
+    el.textContent = planeEmojis[i % planeEmojis.length];
+    el.style.left = pos[0]+"vw";
+    el.style.top = pos[1]+"vh";
+    el.style.transform = "rotate(12deg)";
+    decor.appendChild(el);
+  });
+})();
+
+
+document.getElementById('loginBtn').addEventListener('click', signInAsEditor);
+document.getElementById('logoutBtn').addEventListener('click', signOutEditor);
+
+async function init(){
+  initSharedSync();
+  await loadState();
+  updateAuthUI();
+  buildAreaChips();
+  render();
+  updateProgress();
+}
+init();
+
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {
+      /* Service worker registration failed; the page still works normally. */
+    });
+  });
+}
+</script>
+</body>
+</html>
